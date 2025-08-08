@@ -1,0 +1,4 @@
+## Append samples of your project ##
+resources:
+- rhdl_v1alpha1_downloader.yaml
+# +kubebuilder:scaffold:manifestskustomizesamples
