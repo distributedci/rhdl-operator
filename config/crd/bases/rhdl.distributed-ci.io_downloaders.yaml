@@ -39,13 +39,103 @@ spec:
           spec:
             description: DownloaderSpec defines the desired state of Downloader.
             properties:
-              foo:
-                description: Foo is an example field of Downloader. Edit downloader_types.go
-                  to remove/update
+              credentials:
+                description: |-
+                  Credentials is the reference to the secret containing the authentication
+                  variables e.g. RHDL_ACCESS_KEY, RHDL_SECRET_KEY, RHDL_API_URL (default:
+                  credentials).
                 type: string
+              extraArgs:
+                description: 'ExtraArgs is a list of extra arguments to pass to the
+                  downloader container (default: []).'
+                items:
+                  type: string
+                type: array
+              persistentVolumeClaim:
+                description: PersistentVolumeClaim is the reference to the persistent
+                  volume claim to use for the downloader container. If defined, will
+                  always mount to /mnt.
+                type: string
+              pullPolicy:
+                description: 'PullPolicy is the policy to use the downloader container
+                  (default: Always).'
+                type: string
+              schedule:
+                description: 'Schedule is how often to download the topic (default:
+                  @daily).'
+                type: string
+              tag:
+                description: 'Tag is the tag of the topic to download from (default:
+                  milestone).'
+                type: string
+              topic:
+                description: Topic is the name of the topic to download from.
+                type: string
+            required:
+            - persistentVolumeClaim
+            - topic
             type: object
           status:
             description: DownloaderStatus defines the observed state of Downloader.
+            properties:
+              conditions:
+                description: Conditions store the status conditions of the Downloader
+                  jobs.
+                items:
+                  description: Condition contains details for one aspect of the current
+                    state of this API Resource.
+                  properties:
+                    lastTransitionTime:
+                      description: |-
+                        lastTransitionTime is the last time the condition transitioned from one status to another.
+                        This should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.
+                      format: date-time
+                      type: string
+                    message:
+                      description: |-
+                        message is a human readable message indicating details about the transition.
+                        This may be an empty string.
+                      maxLength: 32768
+                      type: string
+                    observedGeneration:
+                      description: |-
+                        observedGeneration represents the .metadata.generation that the condition was set based upon.
+                        For instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date
+                        with respect to the current state of the instance.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    reason:
+                      description: |-
+                        reason contains a programmatic identifier indicating the reason for the condition's last transition.
+                        Producers of specific condition types may define expected values and meanings for this field,
+                        and whether the values are considered a guaranteed API.
+                        The value should be a CamelCase string.
+                        This field may not be empty.
+                      maxLength: 1024
+                      minLength: 1
+                      pattern: ^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$
+                      type: string
+                    status:
+                      description: status of the condition, one of True, False, Unknown.
+                      enum:
+                      - "True"
+                      - "False"
+                      - Unknown
+                      type: string
+                    type:
+                      description: type of condition in CamelCase or in foo.example.com/CamelCase.
+                      maxLength: 316
+                      pattern: ^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
             type: object
         type: object
     served: true

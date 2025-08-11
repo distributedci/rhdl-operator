@@ -20,28 +20,43 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
 // DownloaderSpec defines the desired state of Downloader.
 type DownloaderSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
-
-	// Foo is an example field of Downloader. Edit downloader_types.go to remove/update
-	Foo string `json:"foo,omitempty"`
+	// Topic is the name of the topic to download from.
+	// +operator-sdk:csv:customresourcedefinitions:type=spec
+	Topic string `json:"topic"`
+	// PersistentVolumeClaim is the reference to the persistent volume claim to use for the downloader container. If defined, will always mount to /mnt.
+	// +operator-sdk:csv:customresourcedefinitions:type=spec
+	PersistentVolumeClaim string `json:"persistentVolumeClaim"`
+	// Tag is the tag of the topic to download from (default: milestone).
+	// +operator-sdk:csv:customresourcedefinitions:type=spec
+	Tag string `json:"tag,omitempty" default:"milestone"`
+	// Schedule is how often to download the topic (default: @daily).
+	// +operator-sdk:csv:customresourcedefinitions:type=spec
+	Schedule string `json:"schedule,omitempty" default:"@daily"`
+	// Credentials is the reference to the secret containing the authentication
+	// variables e.g. RHDL_ACCESS_KEY, RHDL_SECRET_KEY, RHDL_API_URL (default:
+	// credentials).
+	// +operator-sdk:csv:customresourcedefinitions:type=spec
+	Credentials string `json:"credentials,omitempty" default:"credentials"`
+	// PullPolicy is the policy to use the downloader container (default: Always).
+	// +operator-sdk:csv:customresourcedefinitions:type=spec
+	PullPolicy string `json:"pullPolicy,omitempty" default:"Always"`
+	// ExtraArgs is a list of extra arguments to pass to the downloader container (default: []).
+	// +operator-sdk:csv:customresourcedefinitions:type=spec
+	ExtraArgs []string `json:"extraArgs,omitempty"`
 }
 
 // DownloaderStatus defines the observed state of Downloader.
 type DownloaderStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	// Conditions store the status conditions of the Downloader jobs.
+	// +operator-sdk:csv:customresourcedefinitions:type=status
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type" protobuf:"bytes,1,rep,name=conditions"`
 }
 
+// Downloader is the Schema for the downloaders API.
 // +kubebuilder:object:root=true
 // +kubebuilder:subresource:status
-
-// Downloader is the Schema for the downloaders API.
 type Downloader struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
