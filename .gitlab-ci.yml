@@ -1,11 +1,19 @@
 ---
-stages:
-- test
+include:
+  - template: Security/SAST.gitlab-ci.yml
 
-tags:
-  - shared-podman
+stages:
+  - test
+
+workflow:
+  auto_cancel:
+    on_new_commit: interruptible
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
 sast:
   stage: test
-  include:
-    - template: Security/SAST.gitlab-ci.yml
+  tags:
+    - shared-podman
