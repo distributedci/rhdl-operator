@@ -32,9 +32,10 @@ type DownloaderSpec struct {
 	// +operator-sdk:csv:customresourcedefinitions:type=spec
 	// +kubebuilder:default="milestone"
 	Tag string `json:"tag,omitempty"`
-	// Schedule is how often to download the topic (default: @daily).
+	// Schedule is how often to download the topic in cron format (default: @daily).
 	// +operator-sdk:csv:customresourcedefinitions:type=spec
 	// +kubebuilder:default="@daily"
+	// +kubebuilder:validation:Pattern=`^(@(annually|yearly|monthly|weekly|daily|hourly))|([0-9*,/-]+\s+[0-9*,/-]+\s+[0-9*,/-]+\s+[0-9*,/-]+\s+[0-9*,/-]+)$`
 	Schedule string `json:"schedule,omitempty"`
 	// Credentials is the reference to the secret containing the authentication
 	// variables e.g. RHDL_ACCESS_KEY, RHDL_SECRET_KEY, RHDL_API_URL (default:

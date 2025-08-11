@@ -64,8 +64,9 @@ spec:
                 type: string
               schedule:
                 default: '@daily'
-                description: 'Schedule is how often to download the topic (default:
-                  @daily).'
+                description: 'Schedule is how often to download the topic in cron
+                  format (default: @daily).'
+                pattern: ^(@(annually|yearly|monthly|weekly|daily|hourly))|([0-9*,/-]+\s+[0-9*,/-]+\s+[0-9*,/-]+\s+[0-9*,/-]+\s+[0-9*,/-]+)$
                 type: string
               tag:
                 default: milestone
