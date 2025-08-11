@@ -1,3 +1,13 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: test-credentials
+  namespace: default
+type: Opaque
+data:
+  RHDL_ACCESS_KEY: dGVzdC1hY2Nlc3Mta2V5  # test-access-key (base64 encoded)
+  RHDL_SECRET_KEY: dGVzdC1zZWNyZXQta2V5  # test-secret-key (base64 encoded)
+---
 apiVersion: rhdl.distributed-ci.io/v1alpha1
 kind: Downloader
 metadata:
@@ -6,4 +16,6 @@ metadata:
     app.kubernetes.io/managed-by: kustomize
   name: downloader-sample
 spec:
-  # TODO(user): Add fields here
+  topic: RHEL-9.2
+  persistentVolumeClaim: pvc
+  credentials: test-credentials

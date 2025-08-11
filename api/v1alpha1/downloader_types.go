@@ -30,18 +30,22 @@ type DownloaderSpec struct {
 	PersistentVolumeClaim string `json:"persistentVolumeClaim"`
 	// Tag is the tag of the topic to download from (default: milestone).
 	// +operator-sdk:csv:customresourcedefinitions:type=spec
-	Tag string `json:"tag,omitempty" default:"milestone"`
+	// +kubebuilder:default="milestone"
+	Tag string `json:"tag,omitempty"`
 	// Schedule is how often to download the topic (default: @daily).
 	// +operator-sdk:csv:customresourcedefinitions:type=spec
-	Schedule string `json:"schedule,omitempty" default:"@daily"`
+	// +kubebuilder:default="@daily"
+	Schedule string `json:"schedule,omitempty"`
 	// Credentials is the reference to the secret containing the authentication
 	// variables e.g. RHDL_ACCESS_KEY, RHDL_SECRET_KEY, RHDL_API_URL (default:
 	// credentials).
 	// +operator-sdk:csv:customresourcedefinitions:type=spec
-	Credentials string `json:"credentials,omitempty" default:"credentials"`
+	// +kubebuilder:default="credentials"
+	Credentials string `json:"credentials,omitempty"`
 	// PullPolicy is the policy to use the downloader container (default: Always).
 	// +operator-sdk:csv:customresourcedefinitions:type=spec
-	PullPolicy string `json:"pullPolicy,omitempty" default:"Always"`
+	// +kubebuilder:default="Always"
+	PullPolicy string `json:"pullPolicy,omitempty"`
 	// ExtraArgs is a list of extra arguments to pass to the downloader container (default: []).
 	// +operator-sdk:csv:customresourcedefinitions:type=spec
 	ExtraArgs []string `json:"extraArgs,omitempty"`

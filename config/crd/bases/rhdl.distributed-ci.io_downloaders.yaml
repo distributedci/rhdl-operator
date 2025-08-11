@@ -40,6 +40,7 @@ spec:
             description: DownloaderSpec defines the desired state of Downloader.
             properties:
               credentials:
+                default: credentials
                 description: |-
                   Credentials is the reference to the secret containing the authentication
                   variables e.g. RHDL_ACCESS_KEY, RHDL_SECRET_KEY, RHDL_API_URL (default:
@@ -57,14 +58,17 @@ spec:
                   always mount to /mnt.
                 type: string
               pullPolicy:
+                default: Always
                 description: 'PullPolicy is the policy to use the downloader container
                   (default: Always).'
                 type: string
               schedule:
+                default: '@daily'
                 description: 'Schedule is how often to download the topic (default:
                   @daily).'
                 type: string
               tag:
+                default: milestone
                 description: 'Tag is the tag of the topic to download from (default:
                   milestone).'
                 type: string
