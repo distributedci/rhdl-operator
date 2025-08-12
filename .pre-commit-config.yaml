@@ -14,7 +14,7 @@ repos:
         name: append assisted-by
         description: Automatically appends Assisted-By line to commit messages
         entry: >
-          bash -c 'grep -q "^Assisted-By: " "$1" || (echo "" >> "$1"; echo "Assisted-By: Cursor (claude-4-sonnet)" >> "$1")' --
+          bash -c 'if ! grep -q "^Merge branch " "$1" && ! grep -q "^Assisted-By: " "$1"; then echo "" >> "$1"; echo "Assisted-By: Cursor (claude-4-sonnet)" >> "$1"; fi' --
         language: system
         pass_filenames: true
         stages: [commit-msg]
