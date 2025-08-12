@@ -4,8 +4,17 @@ repos:
     hooks:
       - id: go-mod-tidy
         name: go mod tidy
+        description: Ensures go.mod and go.sum are up to date
         entry: go mod tidy
         language: system
         files: '^go\.(mod|sum)$|\.go$'
         pass_filenames: false
-        description: "Ensures go.mod and go.sum are up to date"
+        stages: [pre-commit]
+      - id: append-assisted-by
+        name: append assisted-by
+        description: Automatically appends Assisted-By line to commit messages
+        entry: >
+          bash -c 'grep -q "^Assisted-By: " "$1" || (echo "" >> "$1"; echo "Assisted-By: Cursor (claude-4-sonnet)" >> "$1")' --
+        language: system
+        pass_filenames: true
+        stages: [commit-msg]
