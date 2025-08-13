@@ -28,12 +28,14 @@ import (
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	rhdlv1alpha1 "gitlab.cee.redhat.com/rhdl/operator/api/v1alpha1"
 )
 
-var log = logf.Log.WithName("downloader-controller")
+var log = logf.Log.WithName("rhdl-controller")
 
 // DownloaderCredentials contains the validated credentials for RHDL access
 type DownloaderCredentials struct {
@@ -60,6 +62,8 @@ type DownloaderReconciler struct {
 // +kubebuilder:rbac:groups=rhdl.distributed-ci.io,resources=downloaders,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=rhdl.distributed-ci.io,resources=downloaders/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=rhdl.distributed-ci.io,resources=downloaders/finalizers,verbs=update
+// +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
+// +kubebuilder:rbac:groups=batch,resources=cronjobs,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -143,10 +147,50 @@ func (r *DownloaderReconciler) readCredentials(ctx context.Context) (*Downloader
 	return credentials, nil
 }
 
+// secretToDownloaderRequests maps a Secret to Downloader reconcile requests
+func (r *DownloaderReconciler) secretToDownloaderRequests(ctx context.Context, obj client.Object) []reconcile.Request {
+	secret, ok := obj.(*corev1.Secret)
+	if !ok {
+		return nil
+	}
+
+	// List all Downloader resources in the same namespace
+	var downloaders rhdlv1alpha1.DownloaderList
+	if err := r.List(ctx, &downloaders, client.InNamespace(secret.Namespace)); err != nil {
+		r.logger.Error(err, "Failed to list Downloader resources for Secret mapping", "secret", secret.Name, "namespace", secret.Namespace)
+		return nil
+	}
+
+	var requests []reconcile.Request
+	for _, downloader := range downloaders.Items {
+		// Check if this downloader references this secret
+		credentialsName := downloader.Spec.Credentials
+		if credentialsName == "" {
+			credentialsName = "credentials" // default value
+		}
+
+		if credentialsName == secret.Name {
+			requests = append(requests, reconcile.Request{
+				NamespacedName: types.NamespacedName{
+					Name:      downloader.Name,
+					Namespace: downloader.Namespace,
+				},
+			})
+		}
+	}
+
+	r.logger.Info("Secret change mapped to Downloader requests", "secret", secret.Name, "namespace", secret.Namespace, "requests", len(requests))
+	return requests
+}
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *DownloaderReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&rhdlv1alpha1.Downloader{}).
 		Owns(&batchv1.CronJob{}).
+		Watches(
+			&corev1.Secret{},
+			handler.EnqueueRequestsFromMapFunc(r.secretToDownloaderRequests),
+		).
 		Complete(r)
 }

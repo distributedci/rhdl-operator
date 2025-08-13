@@ -36,7 +36,7 @@ type DownloaderSpec struct {
 	// +operator-sdk:csv:customresourcedefinitions:type=spec
 	// +kubebuilder:default="@daily"
 	// +kubebuilder:validation:Pattern=`^(@(annually|yearly|monthly|weekly|daily|hourly))|([0-9*,/-]+\s+[0-9*,/-]+\s+[0-9*,/-]+\s+[0-9*,/-]+\s+[0-9*,/-]+)$`
-	Schedule string `json:"schedule,omitempty"`
+	Schedule string `json:"schedule"`
 	// Credentials is the reference to the secret containing the authentication
 	// variables e.g. RHDL_ACCESS_KEY, RHDL_SECRET_KEY, RHDL_API_URL (default:
 	// credentials).

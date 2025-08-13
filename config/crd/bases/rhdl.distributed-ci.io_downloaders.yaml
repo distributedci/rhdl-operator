@@ -78,6 +78,7 @@ spec:
                 type: string
             required:
             - persistentVolumeClaim
+            - schedule
             - topic
             type: object
           status:
