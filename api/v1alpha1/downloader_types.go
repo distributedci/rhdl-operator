@@ -50,6 +50,10 @@ type DownloaderSpec struct {
 	// ExtraArgs is a list of extra arguments to pass to the downloader container (default: []).
 	// +operator-sdk:csv:customresourcedefinitions:type=spec
 	ExtraArgs []string `json:"extraArgs,omitempty"`
+	// ContainerImage is the image to use for the downloader container (default: quay.io/rhdl/cli:latest).
+	// +operator-sdk:csv:customresourcedefinitions:type=spec
+	// +kubebuilder:default="quay.io/rhdl/cli:latest"
+	ContainerImage string `json:"containerImage,omitempty"`
 }
 
 // DownloaderStatus defines the observed state of Downloader.

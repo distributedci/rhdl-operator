@@ -39,6 +39,11 @@ spec:
           spec:
             description: DownloaderSpec defines the desired state of Downloader.
             properties:
+              containerImage:
+                default: quay.io/rhdl/cli:latest
+                description: 'ContainerImage is the image to use for the downloader
+                  container (default: quay.io/rhdl/cli:latest).'
+                type: string
               credentials:
                 default: credentials
                 description: |-
