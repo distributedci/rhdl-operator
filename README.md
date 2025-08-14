@@ -1,93 +1,241 @@
-# operator
+# RHDL Operator
 
+A Kubernetes operator for managing RHDL (Red Hat Downloader) download jobs. This
+operator automates the scheduling and execution of content downloads from the
+Red Hat Downloader service.
 
+## Overview
 
-## Getting started
+The RHDL Operator provides a Kubernetes-native way to schedule and manage
+downloads from RHDL topics. It creates and manages CronJobs that run the RHDL
+CLI tool to download content on a scheduled basis, with support for persistent
+storage and configurable authentication.
 
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
+## Features
 
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
+- **Automated Scheduling**: Schedule downloads using standard cron expressions
+- **Topic-based Downloads**: Download specific RHDL topics with configurable tags
+- **Persistent Storage**: Mount persistent volumes for downloaded content
+- **Secure Authentication**: Use Kubernetes secrets for RHDL credentials
+- **Customizable Execution**: Configure container images, pull policies, and extra arguments
+- **Event Monitoring**: Track download job status through Kubernetes events
 
-## Add your files
+## Development Quick Start
 
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
+### Prerequisites
 
+- Kubernetes cluster (v1.24+)
+- kubectl configured to access your cluster
+- RHDL access credentials (access key and secret key)
+
+### Installation
+
+1. Install the Custom Resource Definitions (CRDs):
+```bash
+make install
 ```
-cd existing_repo
-git remote add origin https://gitlab.cee.redhat.com/rhdl/operator.git
-git branch -M main
-git push -uf origin main
+
+2. Run the operator:
+```bash
+make run
 ```
 
-## Integrate with your tools
+### Basic Usage
 
-- [ ] [Set up project integrations](https://gitlab.cee.redhat.com/rhdl/operator/-/settings/integrations)
+1. Create a secret with your RHDL credentials:
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: rhdl-credentials
+  namespace: default
+type: Opaque
+data:
+  RHDL_ACCESS_KEY: <base64-encoded-access-key>
+  RHDL_SECRET_KEY: <base64-encoded-secret-key>
+  # Optional: Custom API URL (defaults to https://api.rhdl.distributed-ci.io)
+  RHDL_API_URL: <base64-encoded-api-url>
+```
 
-## Collaborate with your team
+2. Create a PersistentVolumeClaim for storing downloaded content:
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rhdl-storage
+  namespace: default
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+```
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
+3. Create a Downloader resource:
+```yaml
+apiVersion: rhdl.distributed-ci.io/v1alpha1
+kind: Downloader
+metadata:
+  name: rhel-downloader
+  namespace: default
+spec:
+  topic: RHEL-9.2
+  tag: milestone
+  schedule: "@daily"
+  persistentVolumeClaim: rhdl-storage
+  credentials: rhdl-credentials
+```
 
-## Test and Deploy
+## Configuration
 
-Use the built-in continuous integration in GitLab.
+### Downloader Spec
 
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
+| Field | Type | Description | Default |
+|-------|------|-------------|---------|
+| `topic` | string | RHDL topic name to download | Required |
+| `tag` | string | Topic tag to download | `milestone` |
+| `schedule` | string | Cron schedule expression | `@daily` |
+| `persistentVolumeClaim` | string | PVC name for storage | Required |
+| `credentials` | string | Secret name with RHDL credentials | `credentials` |
+| `containerImage` | string | Container image for downloader | `quay.io/rhdl/cli:latest` |
+| `pullPolicy` | string | Image pull policy | `Always` |
+| `extraArgs` | []string | Additional CLI arguments | `[]` |
 
-***
+### Credentials Secret
 
-# Editing this README
+The credentials secret must contain:
+- `RHDL_ACCESS_KEY`: Your RHDL access key
+- `RHDL_SECRET_KEY`: Your RHDL secret key
+- `RHDL_API_URL` (optional): Custom API endpoint
 
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
+### Schedule Format
 
-## Suggestions for a good README
+The `schedule` field supports standard cron expressions and aliases:
+- `@yearly`, `@annually`, `@monthly`, `@weekly`, `@daily`, `@hourly`
+- Standard cron format e.g. `0 2 * * *` (daily at 2 AM)
 
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
+## Examples
 
-## Name
-Choose a self-explaining name for your project.
+### Download Multiple Topics
 
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
+```yaml
+---
+apiVersion: rhdl.distributed-ci.io/v1alpha1
+kind: Downloader
+metadata:
+  name: rhel-9.2
+spec:
+  topic: RHEL-9.2
+  schedule: "0 4 * * 1"  # Weekly on Monday at 4 AM
+  persistentVolumeClaim: rhdl-storage
+  credentials: rhdl-credentials
+---
+apiVersion: rhdl.distributed-ci.io/v1alpha1
+kind: Downloader
+metadata:
+  name: rhel-9.4-nightly
+spec:
+  topic: RHEL-9.4
+  tag: nightly
+  schedule: "0 3 * * *"  # Daily at 3 AM
+  persistentVolumeClaim: rhdl-storage
+  credentials: rhdl-credentials
+  extraArgs:
+    - "--exclude='*'"
+    - "--include='.composeinfo'"
+```
 
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
+## Development
 
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
+### Building from Source
 
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
+```bash
+# Build the manager binary
+make build
 
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
+# Run locally (requires KUBECONFIG)
+make install run
 
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
+# Build Docker image
+make docker-build IMG=my-registry/rhdl-operator:latest
 
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
+# Push Docker image
+make docker-push IMG=my-registry/rhdl-operator:latest
+```
+
+### Testing
+
+```bash
+# Run unit tests
+make test
+
+# Run end-to-end tests (requires Kind)
+make test-e2e
+
+# Run linter
+make lint
+```
+
+### Generating Manifests
+
+```bash
+# Generate CRDs and RBAC manifests
+make manifests
+
+# Generate installation YAML
+make build-installer
+```
+
+## Architecture
+
+The RHDL Operator manages the following resources:
+
+1. **Downloader CRD**: Defines the desired state for download jobs
+2. **CronJob**: Executes scheduled downloads using the RHDL CLI
+3. **Secret**: Stores RHDL authentication credentials
+4. **PersistentVolumeClaim**: Provides storage for downloaded content
+
+The operator watches for changes to Downloader resources and automatically
+creates, updates, or deletes corresponding CronJobs to maintain the desired
+state.
+
+## Monitoring
+
+The operator provides several ways to monitor download jobs:
+
+### Kubernetes Events
+```bash
+kubectl get events --field-selector involvedObject.kind=Downloader
+```
+
+### CronJob Status
+```bash
+kubectl get cronjobs -l app.kubernetes.io/managed-by=rhdl-operator
+```
+
+### Job Logs
+```bash
+kubectl logs -l job-name=<cronjob-name>-<timestamp>
+```
 
 ## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
 
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
+1. Fork the repository
+2. Create a feature branch: `git checkout -b feature/my-feature`
+3. Make your changes and add tests
+4. Run the test suite: `make test lint`
+5. Commit your changes: `git commit -am 'Add new feature'`
+6. Push to the branch: `git push origin feature/my-feature`
+7. Submit a pull request
 
 ## License
-For open source projects, say how it is licensed.
 
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+This project is licensed under the Apache License 2.0. See the
+[LICENSE](LICENSE) file for details.
+
+## Support
+
+- Documentation: [https://rhdl.distributed-ci.io](https://rhdl.distributed-ci.io)
+- Issues: [GitLab Issues](https://gitlab.cee.redhat.com/rhdl/operator/-/issues)
+- RHDL Service: [https://rhdl.distributed-ci.io](https://rhdl.distributed-ci.io)
