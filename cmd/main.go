@@ -202,11 +202,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err := (&controller.DownloaderReconciler{
-		Client:   mgr.GetClient(),
-		Scheme:   mgr.GetScheme(),
-		Recorder: mgr.GetEventRecorderFor("downloader-controller"),
-	}).SetupWithManager(mgr); err != nil {
+	if err := controller.NewDownloaderReconciler(
+		mgr.GetClient(),
+		ctrl.Log.WithName("rhdl-controller"),
+		mgr.GetScheme(),
+		mgr.GetEventRecorderFor("rhdl-controller"),
+	).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Downloader")
 		os.Exit(1)
 	}

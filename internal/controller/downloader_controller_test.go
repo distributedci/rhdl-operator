@@ -105,12 +105,12 @@ var _ = Describe("Downloader Controller", func() {
 
 		It("should successfully reconcile the resource", func() {
 			By("reconciling the created resource")
-			controllerReconciler := &DownloaderReconciler{
-				Client:   k8sClient,
-				logger:   logr.Discard(), // Use a no-op logger for tests
-				Scheme:   k8sClient.Scheme(),
-				Recorder: record.NewFakeRecorder(100),
-			}
+			controllerReconciler := NewDownloaderReconciler(
+				k8sClient,
+				logr.Discard(),
+				k8sClient.Scheme(),
+				record.NewFakeRecorder(100),
+			)
 
 			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
 				NamespacedName: typeNamespacedName,

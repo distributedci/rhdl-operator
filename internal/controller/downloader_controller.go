@@ -35,15 +35,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
-	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	rhdlv1alpha1 "gitlab.cee.redhat.com/rhdl/operator/api/v1alpha1"
 )
 
 const API_URL = "https://api.rhdl.distributed-ci.io"
-
-var log = logf.Log.WithName("rhdl-controller")
 
 // DownloaderCredentials contains the validated credentials for RHDL access
 type DownloaderCredentials struct {
@@ -61,10 +58,20 @@ func (dc DownloaderCredentials) String() string {
 // DownloaderReconciler reconciles a Downloader object
 type DownloaderReconciler struct {
 	client.Client
-	logger     logr.Logger
+	Logger     logr.Logger
 	downloader *rhdlv1alpha1.Downloader
 	Scheme     *runtime.Scheme
 	Recorder   record.EventRecorder
+}
+
+// NewDownloaderReconciler creates a new DownloaderReconciler with proper initialization
+func NewDownloaderReconciler(client client.Client, logger logr.Logger, scheme *runtime.Scheme, recorder record.EventRecorder) *DownloaderReconciler {
+	return &DownloaderReconciler{
+		Client:   client,
+		Logger:   logger,
+		Scheme:   scheme,
+		Recorder: recorder,
+	}
 }
 
 // +kubebuilder:rbac:groups=rhdl.distributed-ci.io,resources=downloaders,verbs=get;list;watch;create;update;patch;delete
@@ -83,35 +90,33 @@ type DownloaderReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.21.0/pkg/reconcile
 func (r *DownloaderReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = logf.FromContext(ctx)
-
-	r.logger.Info("Reconciling Downloader")
-	r.logger = log.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
+	r.Logger.Info("Reconciling Downloader")
+	r.Logger = r.Logger.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
 
 	// Get the Downloader object
 	downloader := &rhdlv1alpha1.Downloader{}
 	if err := r.Get(ctx, req.NamespacedName, downloader); err != nil {
 		if errors.IsNotFound(err) {
-			r.logger.Info("Downloader not found, skipping reconciliation")
+			r.Logger.Info("Downloader not found, skipping reconciliation")
 			return ctrl.Result{}, nil
 		}
-		r.logger.Error(err, "Failed to get Downloader")
+		r.Logger.Error(err, "Failed to get Downloader")
 		return ctrl.Result{}, err
 	}
-	r.logger.Info("Downloader object", "spec", downloader.Spec)
+	r.Logger.Info("Downloader object", "spec", downloader.Spec)
 	r.downloader = downloader
 
 	creds, err := r.readCredentials(ctx)
 	if err != nil {
-		r.logger.Error(err, "Failed to read credentials")
+		r.Logger.Error(err, "Failed to read credentials")
 		return ctrl.Result{}, err
 	}
 
-	r.logger.Info("Credentials read", "creds", creds)
+	r.Logger.Info("Credentials read", "creds", creds)
 
 	// Create or update the CronJob
 	if err := r.reconcileCronJob(ctx, downloader); err != nil {
-		r.logger.Error(err, "Failed to reconcile CronJob")
+		r.Logger.Error(err, "Failed to reconcile CronJob")
 		return ctrl.Result{}, err
 	}
 
@@ -157,7 +162,7 @@ func (r *DownloaderReconciler) readCredentials(ctx context.Context) (*Downloader
 		credentials.ApiURL = string(apiURL)
 	}
 
-	r.logger.Info("Credentials validation successful")
+	r.Logger.Info("Credentials validation successful")
 
 	return credentials, nil
 }
@@ -270,7 +275,7 @@ func (r *DownloaderReconciler) reconcileCronJob(ctx context.Context, downloader 
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// CronJob doesn't exist, create it
-			r.logger.Info("Creating new CronJob", "cronJob", desiredCronJob.Name)
+			r.Logger.Info("Creating new CronJob", "cronJob", desiredCronJob.Name)
 			if err := r.Create(ctx, desiredCronJob); err != nil {
 				return fmt.Errorf("failed to create CronJob: %w", err)
 			}
@@ -283,7 +288,7 @@ func (r *DownloaderReconciler) reconcileCronJob(ctx context.Context, downloader 
 
 	// CronJob exists, check if it needs to be updated
 	if r.cronJobNeedsUpdate(existingCronJob, desiredCronJob) {
-		r.logger.Info("Updating existing CronJob", "cronJob", existingCronJob.Name)
+		r.Logger.Info("Updating existing CronJob", "cronJob", existingCronJob.Name)
 
 		// Update the existing CronJob with the desired spec
 		existingCronJob.Spec = desiredCronJob.Spec
@@ -373,7 +378,7 @@ func (r *DownloaderReconciler) secretToDownloaderRequests(ctx context.Context, o
 	// List all Downloader resources in the same namespace
 	var downloaders rhdlv1alpha1.DownloaderList
 	if err := r.List(ctx, &downloaders, client.InNamespace(secret.Namespace)); err != nil {
-		r.logger.Error(err, "Failed to list Downloader resources for Secret mapping", "secret", secret.Name, "namespace", secret.Namespace)
+		r.Logger.Error(err, "Failed to list Downloader resources for Secret mapping", "secret", secret.Name, "namespace", secret.Namespace)
 		return nil
 	}
 
@@ -390,7 +395,7 @@ func (r *DownloaderReconciler) secretToDownloaderRequests(ctx context.Context, o
 		}
 	}
 
-	r.logger.Info("Secret change mapped to Downloader requests", "secret", secret.Name, "namespace", secret.Namespace, "requests", len(requests))
+	r.Logger.Info("Secret change mapped to Downloader requests", "secret", secret.Name, "namespace", secret.Namespace, "requests", len(requests))
 
 	return requests
 }
