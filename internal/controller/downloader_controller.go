@@ -115,7 +115,7 @@ func (r *DownloaderReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	r.Logger.Info("Credentials read", "creds", creds)
 
 	// Create or update the CronJob
-	if err := r.reconcileCronJob(ctx, downloader); err != nil {
+	if err := r.reconcileCronJob(ctx); err != nil {
 		r.Logger.Error(err, "Failed to reconcile CronJob")
 		return ctrl.Result{}, err
 	}
@@ -255,12 +255,12 @@ func (r *DownloaderReconciler) createCronJobSpec() *batchv1.CronJob {
 }
 
 // reconcileCronJob creates or updates the CronJob for the Downloader
-func (r *DownloaderReconciler) reconcileCronJob(ctx context.Context, downloader *rhdlv1alpha1.Downloader) error {
+func (r *DownloaderReconciler) reconcileCronJob(ctx context.Context) error {
 	// Generate the desired CronJob spec
 	desiredCronJob := r.createCronJobSpec()
 
 	// Set the owner reference so the CronJob is cleaned up when the Downloader is deleted
-	if err := controllerutil.SetControllerReference(downloader, desiredCronJob, r.Scheme); err != nil {
+	if err := controllerutil.SetControllerReference(r.downloader, desiredCronJob, r.Scheme); err != nil {
 		return fmt.Errorf("failed to set controller reference: %w", err)
 	}
 
@@ -279,7 +279,7 @@ func (r *DownloaderReconciler) reconcileCronJob(ctx context.Context, downloader 
 			if err := r.Create(ctx, desiredCronJob); err != nil {
 				return fmt.Errorf("failed to create CronJob: %w", err)
 			}
-			r.Recorder.Event(downloader, corev1.EventTypeNormal, "CronJobCreated",
+			r.Recorder.Event(r.downloader, corev1.EventTypeNormal, "CronJobCreated",
 				fmt.Sprintf("Created CronJob %s", desiredCronJob.Name))
 			return nil
 		}
@@ -297,7 +297,7 @@ func (r *DownloaderReconciler) reconcileCronJob(ctx context.Context, downloader 
 			return fmt.Errorf("failed to update CronJob: %w", err)
 		}
 
-		r.Recorder.Event(downloader, corev1.EventTypeNormal, "CronJobUpdated",
+		r.Recorder.Event(r.downloader, corev1.EventTypeNormal, "CronJobUpdated",
 			fmt.Sprintf("Updated CronJob %s", existingCronJob.Name))
 	}
 
