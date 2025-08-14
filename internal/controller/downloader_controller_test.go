@@ -24,6 +24,7 @@ import (
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -37,6 +38,8 @@ var _ = Describe("Downloader Controller", func() {
 	Context("When reconciling a resource", Ordered, func() {
 		const resourceName = "test-resource"
 		const secretName = "rhdl-credentials"
+		const defaultSecret = "credentials"
+		const pvcName = "storage"
 
 		ctx := context.Background()
 
@@ -59,7 +62,34 @@ var _ = Describe("Downloader Controller", func() {
 					"RHDL_SECRET_KEY": []byte("test-key"),
 				},
 			}
+
+			By("creating the Secret named credentials")
+			credentialsSecret := secret.DeepCopy()
+			credentialsSecret.ObjectMeta.Name = defaultSecret
+
+			// create both secrets after copy before objects are populated with
+			// k8s metadata
 			Expect(k8sClient.Create(ctx, secret)).To(Succeed())
+			Expect(k8sClient.Create(ctx, credentialsSecret)).To(Succeed())
+
+			By("creating the PersistentVolumeClaim for storage")
+			pvc := &corev1.PersistentVolumeClaim{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      pvcName,
+					Namespace: typeNamespacedName.Namespace,
+				},
+				Spec: corev1.PersistentVolumeClaimSpec{
+					AccessModes: []corev1.PersistentVolumeAccessMode{
+						corev1.ReadWriteOnce,
+					},
+					Resources: corev1.VolumeResourceRequirements{
+						Requests: corev1.ResourceList{
+							corev1.ResourceStorage: resource.MustParse("1Gi"),
+						},
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, pvc)).To(Succeed())
 		})
 
 		BeforeEach(func() {
@@ -101,6 +131,26 @@ var _ = Describe("Downloader Controller", func() {
 			err := k8sClient.Get(ctx, secretNamespacedName, secret)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(k8sClient.Delete(ctx, secret)).To(Succeed())
+
+			By("Cleanup the Secret named credentials")
+			credentialsSecret := &corev1.Secret{}
+			credentialsNamespacedName := types.NamespacedName{
+				Name:      defaultSecret,
+				Namespace: typeNamespacedName.Namespace,
+			}
+			err = k8sClient.Get(ctx, credentialsNamespacedName, credentialsSecret)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(k8sClient.Delete(ctx, credentialsSecret)).To(Succeed())
+
+			By("Cleanup the PersistentVolumeClaim for storage")
+			pvc := &corev1.PersistentVolumeClaim{}
+			pvcNamespacedName := types.NamespacedName{
+				Name:      pvcName,
+				Namespace: typeNamespacedName.Namespace,
+			}
+			err = k8sClient.Get(ctx, pvcNamespacedName, pvc)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(k8sClient.Delete(ctx, pvc)).To(Succeed())
 		})
 
 		It("should successfully reconcile the resource", func() {
