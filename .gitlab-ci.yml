@@ -17,3 +17,19 @@ sast:
   stage: test
   tags:
     - shared-podman
+
+go-test:
+  stage: test
+  image: docker.io/library/golang:1.25-alpine
+  tags:
+    - shared-podman
+  script:
+    - make test
+    - go get github.com/boumenot/gocover-cobertura
+    - go run github.com/boumenot/gocover-cobertura < cover.out > coverage.xml
+  coverage: '/total:\s+\(statements\)\s+\d+.\d+%/'
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
