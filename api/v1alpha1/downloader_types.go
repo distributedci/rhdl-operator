@@ -27,7 +27,7 @@ type DownloaderSpec struct {
 	Topic string `json:"topic"`
 	// PersistentVolumeClaim is the reference to the persistent volume claim to use for the downloader container. If defined, will always mount to /mnt.
 	// +operator-sdk:csv:customresourcedefinitions:type=spec
-	PersistentVolumeClaim string `json:"persistentVolumeClaim"`
+	PersistentVolumeClaim string `json:"persistentVolumeClaim,omitempty"`
 	// Tag is the tag of the topic to download from (default: milestone).
 	// +operator-sdk:csv:customresourcedefinitions:type=spec
 	// +kubebuilder:default="milestone"
@@ -36,7 +36,7 @@ type DownloaderSpec struct {
 	// +operator-sdk:csv:customresourcedefinitions:type=spec
 	// +kubebuilder:default="@daily"
 	// +kubebuilder:validation:Pattern=`^(@(annually|yearly|monthly|weekly|daily|hourly))|([0-9*,/-]+\s+[0-9*,/-]+\s+[0-9*,/-]+\s+[0-9*,/-]+\s+[0-9*,/-]+)$`
-	Schedule string `json:"schedule"`
+	Schedule string `json:"schedule,omitempty"`
 	// Credentials is the reference to the secret containing the authentication
 	// variables e.g. RHDL_ACCESS_KEY, RHDL_SECRET_KEY, RHDL_API_URL (default:
 	// credentials).

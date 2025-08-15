@@ -82,8 +82,6 @@ spec:
                 description: Topic is the name of the topic to download from.
                 type: string
             required:
-            - persistentVolumeClaim
-            - schedule
             - topic
             type: object
           status:
