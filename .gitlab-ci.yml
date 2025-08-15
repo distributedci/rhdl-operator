@@ -18,18 +18,29 @@ sast:
   tags:
     - shared-podman
 
-go-test:
-  stage: test
+.go-cache:
+  variables:
+    GOPATH: $CI_PROJECT_DIR/.go
   image: docker.io/library/golang:1.25-alpine
   tags:
     - shared-podman
   before_script:
     - apk add --no-cache git make bash
+    - mkdir -pv .go
+  cache:
+    paths:
+      - .go/pkg/mod/
+
+go-test:
+  stage: test
+  extends: .go-cache
+  before_script:
+    - go get github.com/boumenot/gocover-cobertura
   script:
     - make test
-    - go get github.com/boumenot/gocover-cobertura
+    - go tool cover -func=cover.out
     - go run github.com/boumenot/gocover-cobertura < cover.out > coverage.xml
-  coverage: '/total:\s+\(statements\)\s+\d+.\d+%/'
+  coverage: '/\(statements\)(?:\s+)?(\d+(?:\.\d+)?%)/'
   artifacts:
     reports:
       coverage_report:
