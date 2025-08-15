@@ -4,6 +4,8 @@ include:
 
 stages:
   - test
+  - build
+  - push
 
 workflow:
   auto_cancel:
@@ -12,11 +14,6 @@ workflow:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_PIPELINE_SOURCE == "web"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
-
-sast:
-  stage: test
-  tags:
-    - shared-podman
 
 .go-cache:
   image: docker.io/library/golang:1.25-alpine
@@ -28,6 +25,43 @@ sast:
   cache:
     paths:
       - /go/pkg/mod/
+
+.buildah:
+  image: quay.io/podman/stable:latest
+  variables:
+    IMAGE_TAG_BASE: quay.io/rhdl/operator
+    STORAGE_DRIVER: vfs  # Use vfs for buildah
+    REGISTRY_AUTH_FILE: "${QUAY_REGISTRY_AUTH_FILE}"
+    CONTAINER_TOOL: buildah
+  stage: build
+  tags:
+    - shared-podman
+  before_script:
+    - buildah --version
+    - buildah images
+  after_script:
+    - buildah images
+
+bundle-build:
+  extends: .buildah
+  script:
+    - make bundle-build
+
+container-build:
+  extends: .buildah
+  script:
+    - make docker-build
+
+catalog-build:
+  extends: .buildah
+  script:
+    - make catalog-build
+
+go-build:
+  stage: build
+  extends: .go-cache
+  script:
+    - make build
 
 go-test:
   stage: test
@@ -42,3 +76,8 @@ go-test:
       coverage_report:
         coverage_format: cobertura
         path: coverage.xml
+
+sast:
+  stage: test
+  tags:
+    - shared-podman
