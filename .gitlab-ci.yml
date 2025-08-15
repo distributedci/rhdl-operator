@@ -24,7 +24,7 @@ go-test:
   tags:
     - shared-podman
   before_script:
-    - apk add --no-cache git make
+    - apk add --no-cache git make bash
   script:
     - make test
     - go get github.com/boumenot/gocover-cobertura
