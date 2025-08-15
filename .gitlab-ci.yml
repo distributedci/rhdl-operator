@@ -19,18 +19,15 @@ sast:
     - shared-podman
 
 .go-cache:
-  variables:
-    GOPATH: $CI_PROJECT_DIR/.go
   image: docker.io/library/golang:1.25-alpine
   tags:
     - shared-podman
   before_script:
     - apk add --no-cache git make bash
-    - mkdir -pv .go
     - go get github.com/boumenot/gocover-cobertura
   cache:
     paths:
-      - .go/pkg/mod/
+      - /go/pkg/mod/
 
 go-test:
   stage: test
