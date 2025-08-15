@@ -23,6 +23,8 @@ go-test:
   image: docker.io/library/golang:1.25-alpine
   tags:
     - shared-podman
+  before_script:
+    - apk add --no-cache git make
   script:
     - make test
     - go get github.com/boumenot/gocover-cobertura
