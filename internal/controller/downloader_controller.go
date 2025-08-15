@@ -42,6 +42,19 @@ import (
 
 const API_URL = "https://api.rhdl.distributed-ci.io"
 
+// DownloaderFinalizer is the finalizer used by the Downloader controller
+const DownloaderFinalizer = "downloader.rhdl.distributed-ci.io/finalizer"
+
+// Status condition reason to message mapping
+var statusConditionMessages = map[string]string{
+	"CredentialsError":            "Failed to read or validate credentials",
+	"CronJobReconciliationFailed": "Failed to reconcile CronJob",
+	"CronJobNeedsCreation":        "CronJob needs to be created",
+	"CronJobCreated":              "CronJob created successfully",
+	"CronJobNeedsUpdate":          "CronJob needs to be updated",
+	"CronJobUpdated":              "CronJob updated successfully",
+}
+
 // DownloaderCredentials contains the validated credentials for RHDL access
 type DownloaderCredentials struct {
 	AccessKey string
@@ -105,13 +118,29 @@ func (r *DownloaderReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 	r.Logger.Info("Downloader object", "spec", downloader.Spec)
 	r.downloader = downloader
-	r.addStatusCondition(ctx, "Ready", metav1.ConditionFalse, "ReconciliationStarted", "Downloader reconciliation started")
+
+	// Check if the Downloader is being deleted
+	if downloader.DeletionTimestamp != nil {
+		return r.handleDeletion(ctx)
+	}
+
+	// Add finalizer if it doesn't exist
+	if !controllerutil.ContainsFinalizer(downloader, DownloaderFinalizer) {
+		r.Logger.Info("Adding finalizer to Downloader")
+		controllerutil.AddFinalizer(downloader, DownloaderFinalizer)
+		if err := r.Update(ctx, downloader); err != nil {
+			r.Logger.Error(err, "Failed to add finalizer")
+			return ctrl.Result{}, err
+		}
+		// Return early to requeue and get the updated object
+		return ctrl.Result{Requeue: true}, nil
+	}
 
 	creds, err := r.readCredentials(ctx)
 	if err != nil {
 		r.Logger.Error(err, "Failed to read credentials")
 		// Update status with error condition
-		r.addStatusCondition(ctx, "Ready", metav1.ConditionFalse, "CredentialsError", err.Error())
+		r.addStatusConditionWithError(ctx, "Ready", metav1.ConditionFalse, "CredentialsError", err)
 		return ctrl.Result{}, err
 	}
 
@@ -121,32 +150,117 @@ func (r *DownloaderReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	if err := r.reconcileCronJob(ctx); err != nil {
 		r.Logger.Error(err, "Failed to reconcile CronJob")
 		// Update status with error condition
-		r.addStatusCondition(ctx, "Ready", metav1.ConditionFalse, "CronJobReconciliationFailed", err.Error())
+		r.addStatusConditionWithError(ctx, "Ready", metav1.ConditionFalse, "CronJobReconciliationFailed", err)
 		return ctrl.Result{}, err
 	}
-
-	// Update status with success condition
-	r.addStatusCondition(ctx, "Ready", metav1.ConditionTrue, "ReconciliationSucceeded", "Downloader reconciled successfully")
 
 	return ctrl.Result{}, nil
 }
 
+// handleDeletion handles the deletion of a Downloader and its owned resources
+func (r *DownloaderReconciler) handleDeletion(ctx context.Context) (ctrl.Result, error) {
+	r.Logger.Info("Handling Downloader deletion")
+
+	// Check if our finalizer is present
+	if !controllerutil.ContainsFinalizer(r.downloader, DownloaderFinalizer) {
+		r.Logger.Info("Finalizer not present, deletion can proceed")
+		return ctrl.Result{}, nil
+	}
+
+	// Clean up the CronJob if it exists
+	if err := r.cleanupCronJob(ctx); err != nil {
+		r.Logger.Error(err, "Failed to cleanup CronJob during deletion")
+		return ctrl.Result{}, err
+	}
+
+	// Remove our finalizer to allow the Downloader to be deleted
+	r.Logger.Info("Removing finalizer from Downloader")
+	controllerutil.RemoveFinalizer(r.downloader, DownloaderFinalizer)
+	if err := r.Update(ctx, r.downloader); err != nil {
+		r.Logger.Error(err, "Failed to remove finalizer")
+		return ctrl.Result{}, err
+	}
+
+	r.Logger.Info("Downloader deletion handling completed")
+	return ctrl.Result{}, nil
+}
+
+// cleanupCronJob deletes the CronJob associated with this Downloader
+func (r *DownloaderReconciler) cleanupCronJob(ctx context.Context) error {
+	cronJob := &batchv1.CronJob{}
+	cronJobKey := types.NamespacedName{
+		Name:      strings.ToLower(r.downloader.Name),
+		Namespace: r.downloader.Namespace,
+	}
+
+	err := r.Get(ctx, cronJobKey, cronJob)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			r.Logger.Info("CronJob not found, nothing to cleanup")
+			return nil
+		}
+		return fmt.Errorf("failed to get CronJob for cleanup: %w", err)
+	}
+
+	r.Logger.Info("Deleting CronJob", "cronJob", cronJob.Name)
+	if err := r.Delete(ctx, cronJob); err != nil {
+		if errors.IsNotFound(err) {
+			r.Logger.Info("CronJob already deleted")
+			return nil
+		}
+		return fmt.Errorf("failed to delete CronJob: %w", err)
+	}
+
+	r.Logger.Info("CronJob deletion initiated")
+	return nil
+}
+
 // addStatusCondition adds a condition to the Downloader status and updates it
-func (r *DownloaderReconciler) addStatusCondition(ctx context.Context, conditionType string, status metav1.ConditionStatus, reason, message string) {
+// The message is automatically looked up from the statusConditionMessages map using the reason,
+// or can be provided as an optional parameter
+func (r *DownloaderReconciler) addStatusCondition(ctx context.Context, conditionType string, status metav1.ConditionStatus, reason string, message ...string) {
+	var msg string
+	if len(message) > 0 {
+		msg = message[0]
+	} else {
+		msg = statusConditionMessages[reason]
+	}
+
 	condition := metav1.Condition{
 		Type:               conditionType,
 		Status:             status,
 		Reason:             reason,
-		Message:            message,
+		Message:            msg,
 		LastTransitionTime: metav1.Now(),
 	}
 
-	// Always append the new condition
-	r.downloader.Status.Conditions = append(r.downloader.Status.Conditions, condition)
+	// Only add the condition if it's different from the last one
+	if r.shouldAddCondition(conditionType, status, reason) {
+		r.downloader.Status.Conditions = append(r.downloader.Status.Conditions, condition)
 
-	if err := r.Status().Update(ctx, r.downloader); err != nil {
-		r.Logger.Error(err, "Failed to update Downloader status")
+		if err := r.Status().Update(ctx, r.downloader); err != nil {
+			r.Logger.Error(err, "Failed to update Downloader status")
+		}
 	}
+}
+
+// shouldAddCondition checks if a condition should be added by comparing with the last condition
+func (r *DownloaderReconciler) shouldAddCondition(conditionType string, status metav1.ConditionStatus, reason string) bool {
+	if len(r.downloader.Status.Conditions) == 0 {
+		return true
+	}
+
+	lastCondition := r.downloader.Status.Conditions[len(r.downloader.Status.Conditions)-1]
+
+	// Add the condition if any of these fields are different from the last condition
+	return lastCondition.Type != conditionType ||
+		lastCondition.Status != status ||
+		lastCondition.Reason != reason
+}
+
+// addStatusConditionWithError adds a condition with a custom error message to the Downloader status
+func (r *DownloaderReconciler) addStatusConditionWithError(ctx context.Context, conditionType string, status metav1.ConditionStatus, reason string, err error) {
+	r.addStatusCondition(ctx, conditionType, status, reason, err.Error())
 }
 
 // readCredentials validates that the referenced secret exists and contains required keys
@@ -301,13 +415,15 @@ func (r *DownloaderReconciler) reconcileCronJob(ctx context.Context) error {
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// CronJob doesn't exist, create it
-			r.addStatusCondition(ctx, "Ready", metav1.ConditionFalse, "CronJobNeedsCreation", "CronJob needs to be created")
+			r.addStatusCondition(ctx, "Ready", metav1.ConditionFalse, "CronJobNeedsCreation")
 			r.Logger.Info("Creating new CronJob", "cronJob", desiredCronJob.Name)
 			if err := r.Create(ctx, desiredCronJob); err != nil {
 				return fmt.Errorf("failed to create CronJob: %w", err)
 			}
 			r.Recorder.Event(r.downloader, corev1.EventTypeNormal, "CronJobCreated",
 				fmt.Sprintf("Created CronJob %s", desiredCronJob.Name))
+
+			r.addStatusCondition(ctx, "Ready", metav1.ConditionTrue, "CronJobCreated")
 			return nil
 		}
 		return fmt.Errorf("failed to get CronJob: %w", err)
@@ -315,7 +431,8 @@ func (r *DownloaderReconciler) reconcileCronJob(ctx context.Context) error {
 
 	// CronJob exists, check if it needs to be updated
 	if r.cronJobNeedsUpdate(existingCronJob, desiredCronJob) {
-		r.addStatusCondition(ctx, "Ready", metav1.ConditionFalse, "CronJobNeedsUpdate", "CronJob needs to be updated")
+		// CronJob needs to be updated
+		r.addStatusCondition(ctx, "Ready", metav1.ConditionFalse, "CronJobNeedsUpdate")
 		r.Logger.Info("Updating existing CronJob", "cronJob", existingCronJob.Name)
 
 		// Update the existing CronJob with the desired spec
@@ -327,7 +444,11 @@ func (r *DownloaderReconciler) reconcileCronJob(ctx context.Context) error {
 
 		r.Recorder.Event(r.downloader, corev1.EventTypeNormal, "CronJobUpdated",
 			fmt.Sprintf("Updated CronJob %s", existingCronJob.Name))
+
+		r.addStatusCondition(ctx, "Ready", metav1.ConditionTrue, "CronJobUpdated")
 	}
+	// If CronJob exists and is up-to-date, we don't need to add any condition
+	// The existing CronJobCreated or CronJobUpdated condition already indicates Ready=True
 
 	return nil
 }
