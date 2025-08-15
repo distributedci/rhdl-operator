@@ -22,6 +22,7 @@ import (
 	"github.com/go-logr/logr"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -36,9 +37,11 @@ import (
 
 var _ = Describe("Downloader Controller", func() {
 	Context("When reconciling a resource", Ordered, func() {
+		const defaultSecret = "credentials"
+		const defaultImage = "quay.io/rhdl/cli:latest"
+		const defaultSchedule = "@daily"
 		const resourceName = "test-resource"
 		const secretName = "rhdl-credentials"
-		const defaultSecret = "credentials"
 		const pvcName = "storage"
 
 		ctx := context.Background()
@@ -47,7 +50,47 @@ var _ = Describe("Downloader Controller", func() {
 			Name:      resourceName,
 			Namespace: "default",
 		}
-		downloader := &rhdlv1alpha1.Downloader{}
+
+		createTestDownloader := func(credentialsName ...string) *rhdlv1alpha1.Downloader {
+			spec := rhdlv1alpha1.DownloaderSpec{}
+			if len(credentialsName) > 0 {
+				spec.Credentials = credentialsName[0]
+			}
+
+			return &rhdlv1alpha1.Downloader{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      resourceName,
+					Namespace: typeNamespacedName.Namespace,
+				},
+				Spec: spec,
+			}
+		}
+
+		createControllerReconciler := func() *DownloaderReconciler {
+			return NewDownloaderReconciler(
+				k8sClient,
+				logr.Discard(),
+				k8sClient.Scheme(),
+				record.NewFakeRecorder(100),
+			)
+		}
+
+		// Helper function to perform two-phase reconciling for finalizer handling
+		performFullReconcile := func(reconciler *DownloaderReconciler) error {
+			// First reconcile call to add finalizer
+			_, err := reconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: typeNamespacedName,
+			})
+			if err != nil {
+				return err
+			}
+
+			// Second reconcile call to do the actual work
+			_, err = reconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: typeNamespacedName,
+			})
+			return err
+		}
 
 		BeforeAll(func() {
 			By("creating the Secret with RHDL credentials")
@@ -92,33 +135,29 @@ var _ = Describe("Downloader Controller", func() {
 			Expect(k8sClient.Create(ctx, pvc)).To(Succeed())
 		})
 
-		BeforeEach(func() {
-			By("creating the custom resource for the Kind Downloader")
-			err := k8sClient.Get(ctx, typeNamespacedName, downloader)
-			if err != nil && errors.IsNotFound(err) {
-				resource := &rhdlv1alpha1.Downloader{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      resourceName,
-						Namespace: typeNamespacedName.Namespace,
-					},
-					Spec: rhdlv1alpha1.DownloaderSpec{
-						Topic:       "RHEL-9.2",
-						Schedule:    "0 4 * * 1",
-						Credentials: secretName,
-					},
-				}
-				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
-			}
-		})
-
 		AfterEach(func() {
-			// TODO(user): Cleanup logic after each test, like removing the resource instance.
+			// Cleanup logic - with finalizers, we need to manually trigger the deletion reconcile
+			// since there's no controller manager running in unit tests
 			resource := &rhdlv1alpha1.Downloader{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Cleanup the specific resource instance Downloader")
 			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
+
+			// Manually trigger the deletion reconcile since no controller manager is running
+			By("Processing finalizer cleanup")
+			controllerReconciler := createControllerReconciler()
+			_, err = controllerReconciler.Reconcile(ctx, reconcile.Request{
+				NamespacedName: typeNamespacedName,
+			})
+			Expect(err).NotTo(HaveOccurred())
+
+			// Verify the Downloader is fully deleted
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, typeNamespacedName, resource)
+				return errors.IsNotFound(err)
+			}, "5s", "100ms").Should(BeTrue())
 		})
 
 		AfterAll(func() {
@@ -153,21 +192,100 @@ var _ = Describe("Downloader Controller", func() {
 			Expect(k8sClient.Delete(ctx, pvc)).To(Succeed())
 		})
 
-		It("should successfully reconcile the resource", func() {
-			By("reconciling the created resource")
-			controllerReconciler := NewDownloaderReconciler(
-				k8sClient,
-				logr.Discard(),
-				k8sClient.Scheme(),
-				record.NewFakeRecorder(100),
-			)
+		It("should successfully reconcile the resource with default values", func() {
+			By("creating the test Downloader resource with default values")
+			testDownloader := createTestDownloader()
+			Expect(k8sClient.Create(ctx, testDownloader)).To(Succeed())
 
-			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
-				NamespacedName: typeNamespacedName,
-			})
+			By("reconciling the created resource")
+			controllerReconciler := createControllerReconciler()
+			err := performFullReconcile(controllerReconciler)
 			Expect(err).NotTo(HaveOccurred())
-			// TODO(user): Add more specific assertions depending on your controller's reconciliation logic.
-			// Example: If you expect a certain status condition after reconciliation, verify it here.
+
+			By("checking the status of the resource")
+			err = k8sClient.Get(ctx, typeNamespacedName, testDownloader)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(len(testDownloader.Status.Conditions)).To(BeNumerically(">", 0))
+			// Check the last condition since we always append conditions
+			lastCondition := testDownloader.Status.Conditions[len(testDownloader.Status.Conditions)-1]
+			Expect(lastCondition.Type).To(Equal("Ready"))
+			Expect(lastCondition.Status).To(Equal(metav1.ConditionTrue))
+
+			By("checking the CronJob resource")
+			cronJob := &batchv1.CronJob{}
+			cronJobNamespacedName := types.NamespacedName{
+				Name:      testDownloader.Name,
+				Namespace: testDownloader.Namespace,
+			}
+			err = k8sClient.Get(ctx, cronJobNamespacedName, cronJob)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("checking the default values of the CronJob")
+			Expect(cronJob.Spec.Schedule).To(Equal(defaultSchedule))
+			Expect(cronJob.Spec.JobTemplate.Spec.Template.Spec.Containers[0].Image).To(Equal(defaultImage))
+			Expect(cronJob.Spec.JobTemplate.Spec.Template.Spec.Containers[0].EnvFrom[0].SecretRef.Name).To(Equal(defaultSecret))
+			Expect(cronJob.Spec.JobTemplate.Spec.Template.Spec.Volumes).To(BeEmpty())
+		})
+
+		It("should fail when referencing a non-existent secret", func() {
+			const nonExistentSecret = "non-existent"
+
+			By("creating the test Downloader resource with non-existent credentials")
+			testDownloader := createTestDownloader(nonExistentSecret)
+			Expect(k8sClient.Create(ctx, testDownloader)).To(Succeed())
+
+			By("reconciling the created resource")
+			controllerReconciler := createControllerReconciler()
+			err := performFullReconcile(controllerReconciler)
+			Expect(err).To(HaveOccurred())
+
+			By("checking the status of the resource shows CredentialsError")
+			err = k8sClient.Get(ctx, typeNamespacedName, testDownloader)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(len(testDownloader.Status.Conditions)).To(BeNumerically(">", 0))
+			lastCondition := testDownloader.Status.Conditions[len(testDownloader.Status.Conditions)-1]
+			Expect(lastCondition.Type).To(Equal("Ready"))
+			Expect(lastCondition.Status).To(Equal(metav1.ConditionFalse))
+			Expect(lastCondition.Reason).To(Equal("CredentialsError"))
+
+			By("checking that no CronJob was created")
+			cronJob := &batchv1.CronJob{}
+			cronJobNamespacedName := types.NamespacedName{
+				Name:      testDownloader.Name,
+				Namespace: testDownloader.Namespace,
+			}
+			err = k8sClient.Get(ctx, cronJobNamespacedName, cronJob)
+			Expect(err).To(HaveOccurred())
+			Expect(errors.IsNotFound(err)).To(BeTrue())
+		})
+
+		It("should not add duplicate conditions on repeated reconciles", func() {
+			By("creating the test Downloader resource with default values")
+			testDownloader := createTestDownloader()
+			Expect(k8sClient.Create(ctx, testDownloader)).To(Succeed())
+
+			By("performing first reconcile")
+			controllerReconciler := createControllerReconciler()
+			err := performFullReconcile(controllerReconciler)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("checking initial status conditions")
+			err = k8sClient.Get(ctx, typeNamespacedName, testDownloader)
+			Expect(err).NotTo(HaveOccurred())
+			initialConditionCount := len(testDownloader.Status.Conditions)
+			Expect(initialConditionCount).To(BeNumerically(">", 0))
+
+			By("performing second reconcile (should not add any new conditions)")
+			err = performFullReconcile(controllerReconciler)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("verifying no new conditions were added")
+			err = k8sClient.Get(ctx, typeNamespacedName, testDownloader)
+			Expect(err).NotTo(HaveOccurred())
+			finalConditionCount := len(testDownloader.Status.Conditions)
+
+			Expect(finalConditionCount).To(Equal(initialConditionCount),
+				"Second reconcile should not add any new conditions since CronJob is already up-to-date")
 		})
 	})
 })
