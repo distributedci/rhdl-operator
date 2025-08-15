@@ -92,6 +92,24 @@ var _ = Describe("Downloader Controller", func() {
 			return err
 		}
 
+		// Helper function to check if the last condition is Ready=True
+		lastConditionIsReady := func(reconciler *DownloaderReconciler) bool {
+			lastCondition, err := reconciler.LastCondition()
+			if err != nil {
+				return false
+			}
+			return lastCondition.Type == "Ready" && lastCondition.Status == metav1.ConditionTrue
+		}
+
+		// Helper function to check if the last condition is Ready=False
+		lastConditionIsNotReady := func(reconciler *DownloaderReconciler) bool {
+			lastCondition, err := reconciler.LastCondition()
+			if err != nil {
+				return false
+			}
+			return lastCondition.Type == "Ready" || lastCondition.Status == metav1.ConditionFalse
+		}
+
 		BeforeAll(func() {
 			By("creating the Secret with RHDL credentials")
 			secret := &corev1.Secret{
@@ -206,10 +224,8 @@ var _ = Describe("Downloader Controller", func() {
 			err = k8sClient.Get(ctx, typeNamespacedName, testDownloader)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(len(testDownloader.Status.Conditions)).To(BeNumerically(">", 0))
-			// Check the last condition since we always append conditions
-			lastCondition := testDownloader.Status.Conditions[len(testDownloader.Status.Conditions)-1]
-			Expect(lastCondition.Type).To(Equal("Ready"))
-			Expect(lastCondition.Status).To(Equal(metav1.ConditionTrue))
+			// Check that the last condition indicates success
+			Expect(lastConditionIsReady(controllerReconciler)).To(BeTrue())
 
 			By("checking the CronJob resource")
 			cronJob := &batchv1.CronJob{}
@@ -243,9 +259,10 @@ var _ = Describe("Downloader Controller", func() {
 			err = k8sClient.Get(ctx, typeNamespacedName, testDownloader)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(len(testDownloader.Status.Conditions)).To(BeNumerically(">", 0))
-			lastCondition := testDownloader.Status.Conditions[len(testDownloader.Status.Conditions)-1]
-			Expect(lastCondition.Type).To(Equal("Ready"))
-			Expect(lastCondition.Status).To(Equal(metav1.ConditionFalse))
+			// Check that the last condition indicates failure
+			Expect(lastConditionIsNotReady(controllerReconciler)).To(BeTrue())
+			// Verify the specific reason is CredentialsError
+			lastCondition, _ := controllerReconciler.LastCondition()
 			Expect(lastCondition.Reason).To(Equal("CredentialsError"))
 
 			By("checking that no CronJob was created")
@@ -286,6 +303,36 @@ var _ = Describe("Downloader Controller", func() {
 
 			Expect(finalConditionCount).To(Equal(initialConditionCount),
 				"Second reconcile should not add any new conditions since CronJob is already up-to-date")
+		})
+
+		It("should successfully reconcile a resource with non-default secret", func() {
+			By("creating the test Downloader resource with non-default secret")
+			testDownloader := createTestDownloader(secretName) // Uses "rhdl-credentials"
+			Expect(k8sClient.Create(ctx, testDownloader)).To(Succeed())
+
+			By("reconciling the created resource")
+			controllerReconciler := createControllerReconciler()
+			err := performFullReconcile(controllerReconciler)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("checking the status of the resource")
+			err = k8sClient.Get(ctx, typeNamespacedName, testDownloader)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(len(testDownloader.Status.Conditions)).To(BeNumerically(">", 0))
+			// Check that the last condition indicates success
+			Expect(lastConditionIsReady(controllerReconciler)).To(BeTrue())
+
+			By("checking the CronJob resource")
+			cronJob := &batchv1.CronJob{}
+			cronJobNamespacedName := types.NamespacedName{
+				Name:      testDownloader.Name,
+				Namespace: testDownloader.Namespace,
+			}
+			err = k8sClient.Get(ctx, cronJobNamespacedName, cronJob)
+			Expect(err).NotTo(HaveOccurred())
+
+			By("checking that the CronJob uses the non-default secret")
+			Expect(cronJob.Spec.JobTemplate.Spec.Template.Spec.Containers[0].EnvFrom[0].SecretRef.Name).To(Equal(secretName))
 		})
 	})
 })

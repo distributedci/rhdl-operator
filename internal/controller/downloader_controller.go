@@ -246,11 +246,11 @@ func (r *DownloaderReconciler) addStatusCondition(ctx context.Context, condition
 
 // shouldAddCondition checks if a condition should be added by comparing with the last condition
 func (r *DownloaderReconciler) shouldAddCondition(conditionType string, status metav1.ConditionStatus, reason string) bool {
-	if len(r.downloader.Status.Conditions) == 0 {
+	lastCondition, err := r.LastCondition()
+	if err != nil {
+		// No conditions exist, allow adding the first one
 		return true
 	}
-
-	lastCondition := r.downloader.Status.Conditions[len(r.downloader.Status.Conditions)-1]
 
 	// Add the condition if any of these fields are different from the last condition
 	return lastCondition.Type != conditionType ||
@@ -261,6 +261,14 @@ func (r *DownloaderReconciler) shouldAddCondition(conditionType string, status m
 // addStatusConditionWithError adds a condition with a custom error message to the Downloader status
 func (r *DownloaderReconciler) addStatusConditionWithError(ctx context.Context, conditionType string, status metav1.ConditionStatus, reason string, err error) {
 	r.addStatusCondition(ctx, conditionType, status, reason, err.Error())
+}
+
+// LastCondition returns the most recent condition from the Downloader status
+func (r *DownloaderReconciler) LastCondition() (metav1.Condition, error) {
+	if len(r.downloader.Status.Conditions) == 0 {
+		return metav1.Condition{}, fmt.Errorf("no conditions found")
+	}
+	return r.downloader.Status.Conditions[len(r.downloader.Status.Conditions)-1], nil
 }
 
 // readCredentials validates that the referenced secret exists and contains required keys
