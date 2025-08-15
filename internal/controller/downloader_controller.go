@@ -105,10 +105,13 @@ func (r *DownloaderReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 	r.Logger.Info("Downloader object", "spec", downloader.Spec)
 	r.downloader = downloader
+	r.addStatusCondition(ctx, "Ready", metav1.ConditionFalse, "ReconciliationStarted", "Downloader reconciliation started")
 
 	creds, err := r.readCredentials(ctx)
 	if err != nil {
 		r.Logger.Error(err, "Failed to read credentials")
+		// Update status with error condition
+		r.addStatusCondition(ctx, "Ready", metav1.ConditionFalse, "CredentialsError", err.Error())
 		return ctrl.Result{}, err
 	}
 
@@ -117,10 +120,33 @@ func (r *DownloaderReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	// Create or update the CronJob
 	if err := r.reconcileCronJob(ctx); err != nil {
 		r.Logger.Error(err, "Failed to reconcile CronJob")
+		// Update status with error condition
+		r.addStatusCondition(ctx, "Ready", metav1.ConditionFalse, "CronJobReconciliationFailed", err.Error())
 		return ctrl.Result{}, err
 	}
 
+	// Update status with success condition
+	r.addStatusCondition(ctx, "Ready", metav1.ConditionTrue, "ReconciliationSucceeded", "Downloader reconciled successfully")
+
 	return ctrl.Result{}, nil
+}
+
+// addStatusCondition adds a condition to the Downloader status and updates it
+func (r *DownloaderReconciler) addStatusCondition(ctx context.Context, conditionType string, status metav1.ConditionStatus, reason, message string) {
+	condition := metav1.Condition{
+		Type:               conditionType,
+		Status:             status,
+		Reason:             reason,
+		Message:            message,
+		LastTransitionTime: metav1.Now(),
+	}
+
+	// Always append the new condition
+	r.downloader.Status.Conditions = append(r.downloader.Status.Conditions, condition)
+
+	if err := r.Status().Update(ctx, r.downloader); err != nil {
+		r.Logger.Error(err, "Failed to update Downloader status")
+	}
 }
 
 // readCredentials validates that the referenced secret exists and contains required keys
@@ -275,6 +301,7 @@ func (r *DownloaderReconciler) reconcileCronJob(ctx context.Context) error {
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// CronJob doesn't exist, create it
+			r.addStatusCondition(ctx, "Ready", metav1.ConditionFalse, "CronJobNeedsCreation", "CronJob needs to be created")
 			r.Logger.Info("Creating new CronJob", "cronJob", desiredCronJob.Name)
 			if err := r.Create(ctx, desiredCronJob); err != nil {
 				return fmt.Errorf("failed to create CronJob: %w", err)
@@ -288,6 +315,7 @@ func (r *DownloaderReconciler) reconcileCronJob(ctx context.Context) error {
 
 	// CronJob exists, check if it needs to be updated
 	if r.cronJobNeedsUpdate(existingCronJob, desiredCronJob) {
+		r.addStatusCondition(ctx, "Ready", metav1.ConditionFalse, "CronJobNeedsUpdate", "CronJob needs to be updated")
 		r.Logger.Info("Updating existing CronJob", "cronJob", existingCronJob.Name)
 
 		// Update the existing CronJob with the desired spec
