@@ -27,6 +27,7 @@ sast:
   before_script:
     - apk add --no-cache git make bash
     - mkdir -pv .go
+    - go get github.com/boumenot/gocover-cobertura
   cache:
     paths:
       - .go/pkg/mod/
@@ -34,8 +35,6 @@ sast:
 go-test:
   stage: test
   extends: .go-cache
-  before_script:
-    - go get github.com/boumenot/gocover-cobertura
   script:
     - make test
     - go tool cover -func=cover.out
