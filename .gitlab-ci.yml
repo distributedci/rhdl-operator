@@ -27,7 +27,7 @@ workflow:
       - /go/pkg/mod/
 
 .buildah:
-  image: quay.io/podman/stable:latest
+  image: quay.io/rhdl/builder:latest
   variables:
     IMAGE_TAG_BASE: quay.io/rhdl/operator
     STORAGE_DRIVER: vfs  # Use vfs for buildah
