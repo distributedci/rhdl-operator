@@ -27,16 +27,18 @@ workflow:
       - /go/pkg/mod/
 
 .buildah:
-  image: quay.io/rhdl/builder:latest
+  image: docker.io/library/golang:1.25-alpine
   variables:
     IMAGE_TAG_BASE: quay.io/rhdl/operator
     STORAGE_DRIVER: vfs  # Use vfs for buildah
     REGISTRY_AUTH_FILE: "${QUAY_REGISTRY_AUTH_FILE}"
     CONTAINER_TOOL: buildah
+    GIT_VERSION: "+git${CI_COMMIT_SHA}"
   stage: build
   tags:
     - shared-podman
   before_script:
+    - apk add --no-cache buildah git make bash
     - buildah --version
     - buildah images
   after_script:
@@ -47,7 +49,7 @@ bundle-build:
   script:
     - make bundle-build
 
-container-build:
+docker-build:
   extends: .buildah
   script:
     - make docker-build
