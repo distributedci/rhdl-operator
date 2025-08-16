@@ -44,20 +44,10 @@ workflow:
   after_script:
     - buildah images
 
-bundle-build:
-  extends: .buildah
-  script:
-    - make bundle bundle-build
-
 docker-build:
   extends: .buildah
   script:
     - make docker-build
-
-catalog-build:
-  extends: .buildah
-  script:
-    - make catalog-build
 
 go-build:
   stage: build
