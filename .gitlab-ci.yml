@@ -47,7 +47,7 @@ workflow:
 bundle-build:
   extends: .buildah
   script:
-    - make bundle-build
+    - make bundle bundle-build
 
 docker-build:
   extends: .buildah
