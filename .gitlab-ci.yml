@@ -33,7 +33,7 @@ workflow:
     STORAGE_DRIVER: vfs  # Use vfs for buildah
     REGISTRY_AUTH_FILE: "${QUAY_REGISTRY_AUTH_FILE}"
     CONTAINER_TOOL: buildah
-    GIT_VERSION: "-git${CI_COMMIT_SHA}"
+    GIT_VERSION: "-git${CI_COMMIT_SHORT_SHA}"
   stage: build
   tags:
     - shared-podman
