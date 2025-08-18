@@ -7,7 +7,7 @@ KUBECONFIG ?= $(ROOT_DIR)kubeconfig
 # - use the VERSION as arg of the bundle target (e.g make bundle VERSION=0.0.2)
 # - use environment variables to overwrite this value (e.g export VERSION=0.0.2)
 BASE_VERSION ?= 0.0.1
-VERSION ?= $(BASE_VERSION)$(GIT_VERSION)
+VERSION ?= $(BASE_VERSION)$(SNAPSHOT)
 
 # CHANNELS define the bundle channels used in the bundle.
 # Add a new line here if you would like to change its default config. (E.g CHANNELS = "candidate,fast,stable")
@@ -32,7 +32,7 @@ BUNDLE_METADATA_OPTS ?= $(BUNDLE_CHANNELS) $(BUNDLE_DEFAULT_CHANNEL)
 # This variable is used to construct full image tags for bundle and catalog images.
 #
 # For example, running 'make bundle-build bundle-push catalog-build catalog-push' will build and push both
-# distributed-ci.io/rhdl-operator-bundle:$VERSION and distributed-ci.io/rhdl-operator-catalog:$VERSION.
+# quay.io/rhdl/operator-bundle:$VERSION and quay.io/rhdl/operator-catalog:$VERSION.
 IMAGE_TAG_BASE ?= quay.io/rhdl/operator
 
 # BUNDLE_IMG defines the image:tag used for the bundle.
@@ -367,3 +367,13 @@ catalog-build: opm ## Build a catalog image.
 .PHONY: catalog-push
 catalog-push: ## Push a catalog image.
 	$(MAKE) docker-push IMG=$(CATALOG_IMG)
+
+# Shows the current operator version
+.PHONY: version
+version:
+	@echo $(BASE_VERSION)
+
+# Shows the current operator version + snapshot, if no snapshot defined this and version target print the same
+@PHONY: full-version
+full-version:
+	@echo $(VERSION)

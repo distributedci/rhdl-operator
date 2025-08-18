@@ -6,6 +6,7 @@ stages:
   - test
   - build
   - push
+  - promote
 
 workflow:
   auto_cancel:
@@ -33,8 +34,7 @@ workflow:
     STORAGE_DRIVER: vfs  # Use vfs for buildah
     REGISTRY_AUTH_FILE: "${QUAY_REGISTRY_AUTH_FILE}"
     CONTAINER_TOOL: buildah
-    GIT_VERSION: "-git${CI_COMMIT_SHORT_SHA}"
-  stage: build
+  stage: push
   tags:
     - shared-podman
   before_script:
@@ -44,10 +44,31 @@ workflow:
   after_script:
     - buildah images
 
-docker-build:
+.skopeo:
+  image: quay.io/rhdl/builder:latest
+  variables:
+    IMAGE_TAG_BASE: quay.io/rhdl/operator
+    STORAGE_DRIVER: vfs  # Use vfs for buildah
+    REGISTRY_AUTH_FILE: "${QUAY_REGISTRY_AUTH_FILE}"
+    SNAPSHOT: "-git${CI_COMMIT_SHORT_SHA}"
+  before_script:
+    - skopeo --version
+
+docker-build-and-push:
   extends: .buildah
+  variables:
+    SNAPSHOT: "-git${CI_COMMIT_SHORT_SHA}"
   script:
-    - make docker-build
+    - make docker-build docker-push
+
+docker-promote:
+  extends: .skopeo
+  stage: promote
+  script:
+    - >
+      skopeo copy
+      docker://${IMAGE_TAG_BASE}:$(make full-version)
+      docker://${IMAGE_TAG_BASE}:$(make version)
 
 go-build:
   stage: build
