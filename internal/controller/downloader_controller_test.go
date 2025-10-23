@@ -267,7 +267,7 @@ var _ = Describe("Downloader Controller", func() {
 			By("checking the status of the resource shows CredentialsError")
 			err = k8sClient.Get(ctx, typeNamespacedName, testDownloader)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(len(testDownloader.Status.Conditions)).ToNot(BeEmpty())
+			Expect(testDownloader.Status.Conditions).ToNot(BeEmpty())
 			// Check that the last condition indicates failure
 			Expect(lastConditionIsNotReady(controllerReconciler)).To(BeTrue())
 			// Verify the specific reason is CredentialsError
@@ -298,8 +298,7 @@ var _ = Describe("Downloader Controller", func() {
 			By("checking initial status conditions")
 			err = k8sClient.Get(ctx, typeNamespacedName, testDownloader)
 			Expect(err).NotTo(HaveOccurred())
-			initialConditionCount := len(testDownloader.Status.Conditions)
-			Expect(initialConditionCount).To(BeNumerically(">", 0))
+			Expect(testDownloader.Status.Conditions).To(BeEmpty())
 
 			By("performing second reconcile (should not add any new conditions)")
 			err = performFullReconcile(controllerReconciler)
@@ -308,10 +307,7 @@ var _ = Describe("Downloader Controller", func() {
 			By("verifying no new conditions were added")
 			err = k8sClient.Get(ctx, typeNamespacedName, testDownloader)
 			Expect(err).NotTo(HaveOccurred())
-			finalConditionCount := len(testDownloader.Status.Conditions)
-
-			Expect(finalConditionCount).To(Equal(initialConditionCount),
-				"Second reconcile should not add any new conditions since CronJob is already up-to-date")
+			Expect(testDownloader.Status.Conditions).To(BeEmpty())
 		})
 
 		It("should successfully reconcile a resource with non-default secret", func() {
@@ -327,7 +323,7 @@ var _ = Describe("Downloader Controller", func() {
 			By("checking the status of the resource")
 			err = k8sClient.Get(ctx, typeNamespacedName, testDownloader)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(len(testDownloader.Status.Conditions)).ToNot(BeEmpty())
+			Expect(testDownloader.Status.Conditions).ToNot(BeEmpty())
 			// Check that the last condition indicates success
 			Expect(lastConditionIsReady(controllerReconciler)).To(BeTrue())
 
