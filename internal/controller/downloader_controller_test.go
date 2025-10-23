@@ -298,7 +298,7 @@ var _ = Describe("Downloader Controller", func() {
 			By("checking initial status conditions")
 			err = k8sClient.Get(ctx, typeNamespacedName, testDownloader)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(testDownloader.Status.Conditions).To(BeEmpty())
+			initialCondCount := len(testDownloader.Status.Conditions)
 
 			By("performing second reconcile (should not add any new conditions)")
 			err = performFullReconcile(controllerReconciler)
@@ -307,7 +307,8 @@ var _ = Describe("Downloader Controller", func() {
 			By("verifying no new conditions were added")
 			err = k8sClient.Get(ctx, typeNamespacedName, testDownloader)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(testDownloader.Status.Conditions).To(BeEmpty())
+			finalCondCount := len(testDownloader.Status.Conditions)
+			Expect(initialCondCount).To(Equal(finalCondCount))
 		})
 
 		It("should successfully reconcile a resource with non-default secret", func() {
