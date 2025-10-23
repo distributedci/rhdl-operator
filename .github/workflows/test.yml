@@ -21,3 +21,13 @@ jobs:
         run: |
           go mod tidy
           make test
+
+      - name: Produce coverage file
+        run: |
+          go tool cover -func=cover.out
+          go run github.com/boumenot/gocover-cobertura < cover.out > coverage.xml
+
+      - name: Code Coverage Summary Report
+        uses: irongut/CodeCoverageSummary@v1.3.0
+        with:
+          filename: coverage.xml
