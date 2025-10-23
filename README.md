@@ -237,5 +237,5 @@ This project is licensed under the Apache License 2.0. See the
 ## Support
 
 - Documentation: [https://rhdl.distributed-ci.io](https://rhdl.distributed-ci.io)
-- Issues: [GitLab Issues](https://gitlab.cee.redhat.com/rhdl/operator/-/issues)
+- Issues: [GitLab Issues](https://github.com/distributedci/rhdl-operator/-/issues)
 - RHDL Service: [https://rhdl.distributed-ci.io](https://rhdl.distributed-ci.io)
