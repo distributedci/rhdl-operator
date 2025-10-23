@@ -232,7 +232,7 @@ var _ = Describe("Downloader Controller", func() {
 			By("checking the status of the resource")
 			err = k8sClient.Get(ctx, typeNamespacedName, testDownloader)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(len(testDownloader.Status.Conditions)).ToNot(BeEmpty())
+			Expect(testDownloader.Status.Conditions).ToNot(BeEmpty())
 			// Check that the last condition indicates success
 			Expect(lastConditionIsReady(controllerReconciler)).To(BeTrue())
 
