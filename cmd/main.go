@@ -37,8 +37,8 @@ import (
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
-	rhdlv1alpha1 "gitlab.cee.redhat.com/rhdl/operator/api/v1alpha1"
-	"gitlab.cee.redhat.com/rhdl/operator/internal/controller"
+	rhdlv1alpha1 "github.com/distributedci/rhdl-operator/api/v1alpha1"
+	"github.com/distributedci/rhdl-operator/internal/controller"
 	// +kubebuilder:scaffold:imports
 )
 

@@ -1,4 +1,4 @@
-module gitlab.cee.redhat.com/rhdl/operator
+module github.com/distributedci/rhdl-operator
 
 go 1.24.0
 

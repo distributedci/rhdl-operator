@@ -32,7 +32,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	rhdlv1alpha1 "gitlab.cee.redhat.com/rhdl/operator/api/v1alpha1"
+	rhdlv1alpha1 "github.com/distributedci/rhdl-operator/api/v1alpha1"
 	// +kubebuilder:scaffold:imports
 )
 

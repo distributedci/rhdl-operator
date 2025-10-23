@@ -37,7 +37,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	rhdlv1alpha1 "gitlab.cee.redhat.com/rhdl/operator/api/v1alpha1"
+	rhdlv1alpha1 "github.com/distributedci/rhdl-operator/api/v1alpha1"
 )
 
 const API_URL = "https://api.rhdl.distributed-ci.io"

@@ -27,7 +27,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
-	"gitlab.cee.redhat.com/rhdl/operator/test/utils"
+	"github.com/distributedci/rhdl-operator/test/utils"
 )
 
 // namespace where the project is deployed in
