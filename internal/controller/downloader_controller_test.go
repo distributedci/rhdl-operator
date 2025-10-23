@@ -124,9 +124,18 @@ var _ = Describe("Downloader Controller", func() {
 				},
 			}
 
-			By("creating the Secret named credentials")
-			credentialsSecret := secret.DeepCopy()
-			credentialsSecret.ObjectMeta.Name = defaultSecret
+			By("creating the default Secret named credentials")
+			credentialsSecret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      defaultSecret,
+					Namespace: typeNamespacedName.Namespace,
+				},
+				Type: corev1.SecretTypeOpaque,
+				Data: map[string][]byte{
+					"RHDL_ACCESS_KEY": []byte("test-key"),
+					"RHDL_SECRET_KEY": []byte("test-key"),
+				},
+			}
 
 			// create both secrets after copy before objects are populated with
 			// k8s metadata
@@ -223,7 +232,7 @@ var _ = Describe("Downloader Controller", func() {
 			By("checking the status of the resource")
 			err = k8sClient.Get(ctx, typeNamespacedName, testDownloader)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(len(testDownloader.Status.Conditions)).To(BeNumerically(">", 0))
+			Expect(len(testDownloader.Status.Conditions)).ToNot(BeEmpty())
 			// Check that the last condition indicates success
 			Expect(lastConditionIsReady(controllerReconciler)).To(BeTrue())
 
@@ -258,7 +267,7 @@ var _ = Describe("Downloader Controller", func() {
 			By("checking the status of the resource shows CredentialsError")
 			err = k8sClient.Get(ctx, typeNamespacedName, testDownloader)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(len(testDownloader.Status.Conditions)).To(BeNumerically(">", 0))
+			Expect(len(testDownloader.Status.Conditions)).ToNot(BeEmpty())
 			// Check that the last condition indicates failure
 			Expect(lastConditionIsNotReady(controllerReconciler)).To(BeTrue())
 			// Verify the specific reason is CredentialsError
@@ -318,7 +327,7 @@ var _ = Describe("Downloader Controller", func() {
 			By("checking the status of the resource")
 			err = k8sClient.Get(ctx, typeNamespacedName, testDownloader)
 			Expect(err).NotTo(HaveOccurred())
-			Expect(len(testDownloader.Status.Conditions)).To(BeNumerically(">", 0))
+			Expect(len(testDownloader.Status.Conditions)).ToNot(BeEmpty())
 			// Check that the last condition indicates success
 			Expect(lastConditionIsReady(controllerReconciler)).To(BeTrue())
 

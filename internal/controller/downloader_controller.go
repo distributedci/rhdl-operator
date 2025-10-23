@@ -78,9 +78,9 @@ type DownloaderReconciler struct {
 }
 
 // NewDownloaderReconciler creates a new DownloaderReconciler with proper initialization
-func NewDownloaderReconciler(client client.Client, logger logr.Logger, scheme *runtime.Scheme, recorder record.EventRecorder) *DownloaderReconciler {
+func NewDownloaderReconciler(clientObj client.Client, logger logr.Logger, scheme *runtime.Scheme, recorder record.EventRecorder) *DownloaderReconciler {
 	return &DownloaderReconciler{
-		Client:   client,
+		Client:   clientObj,
 		Logger:   logger,
 		Scheme:   scheme,
 		Recorder: recorder,
