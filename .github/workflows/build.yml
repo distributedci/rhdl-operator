@@ -25,12 +25,21 @@ jobs:
       - name: Install buildah
         run: |
           sudo apt-get update
-          sudo apt-get install -y buildah
+          sudo apt-get install -y buildah skopeo
 
       - name: Login to quay.io
         run: |
           echo ${{ secrets.RHDL_QUAY_PASSWORD }} | buildah login -u ${{ secrets.RHDL_QUAY_USER }} --password-stdin quay.io
 
-      - name: Build and push docker image
+      - name: Generate build vars
+        id: build_vars
         run: |
-          make docker-build docker-push SNAPSHOT="-git${GITHUB_SHA:0:7}"
+          SNAPSHOT_VALUE="-git$(echo ${{ github.sha }} | cut -c 1-7)"
+          echo "SNAPSHOT=${SNAPSHOT_VALUE}" >> $GITHUB_OUTPUT
+
+      - name: Build and push container image
+        env:
+          SNAPSHOT: ${{ steps.build_vars.outputs.SNAPSHOT }}
+        run: |
+          make docker-build docker-push
+          skopeo copy docker://${IMAGE_TAG_BASE}:$(make full-version) docker://${IMAGE_TAG_BASE}:latest
