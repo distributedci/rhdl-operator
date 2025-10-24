@@ -15,7 +15,7 @@ jobs:
         IMAGE_TAG_BASE: quay.io/rhdl/operator
         STORAGE_DRIVER: vfs
         CONTAINER_TOOL: buildah
-        SNAPSHOT: ""
+        BUILDAH_ISOLATION: chroot
 
     steps:
       - name: Install Go
@@ -25,12 +25,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Calculate snapshot SHA
-        run: |
-          echo "SNAPSHOT=${GITHUB_SHA:0:7}" >> $GITHUB_OUTPUT
-
       - name: Build docker image
         run: |
           pwd
           ls -l
-          make docker-build
+          make docker-build SNAPSHOT=${GITHUB_SHA:0:7}
