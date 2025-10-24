@@ -22,10 +22,15 @@ jobs:
         run: |
           dnf --assumeyes --refresh install golang
 
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Calculate snapshot SHA
         run: |
           echo "SNAPSHOT=${GITHUB_SHA:0:7}" >> $GITHUB_OUTPUT
 
       - name: Build docker image
         run: |
+          pwd
+          ls -l
           make docker-build
