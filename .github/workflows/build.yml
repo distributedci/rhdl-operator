@@ -1,4 +1,4 @@
-name: Container snapshot
+name: Container Image
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
       - main
 
 jobs:
-  docker-build:
+  build-and-push:
     runs-on: ubuntu-latest
 
     env:
@@ -27,8 +27,10 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y buildah
 
-      - name: Build docker image
+      - name: Login to quay.io
         run: |
-          pwd
-          ls -l
-          make docker-build SNAPSHOT="-git${GITHUB_SHA:0:7}"
+          echo ${{ secrets.RHDL_QUAY_PASSWORD }} | buildah login -u ${{ secrets.RHDL_QUAY_USER }} --password-stdin
+
+      - name: Build and push docker image
+        run: |
+          make docker-build docker-push SNAPSHOT="-git${GITHUB_SHA:0:7}"
