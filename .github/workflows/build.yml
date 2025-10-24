@@ -31,4 +31,4 @@ jobs:
         run: |
           pwd
           ls -l
-          make docker-build SNAPSHOT=${GITHUB_SHA:0:7}
+          make docker-build SNAPSHOT="-git${GITHUB_SHA:0:7}"
