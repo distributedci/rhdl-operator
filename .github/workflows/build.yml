@@ -9,21 +9,23 @@ jobs:
   docker-build:
     runs-on: ubuntu-latest
 
-    container:
-      image: quay.io/rhdl/builder:latest
-      env:
-        IMAGE_TAG_BASE: quay.io/rhdl/operator
-        STORAGE_DRIVER: vfs
-        CONTAINER_TOOL: buildah
-        BUILDAH_ISOLATION: chroot
+    env:
+      IMAGE_TAG_BASE: quay.io/rhdl/operator
+      CONTAINER_TOOL: buildah
 
     steps:
-      - name: Install Go
-        run: |
-          dnf --assumeyes --refresh install golang
-
-      - name: Checkout repository
+      - name: Clone the code
         uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Install buildah
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y buildah
 
       - name: Build docker image
         run: |
