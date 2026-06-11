@@ -25,7 +25,7 @@ jobs:
       - name: Produce coverage file
         run: |
           go tool cover -func=cover.out
-          go get github.com/boumenot/gocover-cobertura
+          go get github.com/boumenot/gocover-cobertura@b1bccd90304174121462cb67f5f9e8fc496ee828  # v1.4.0
           go run github.com/boumenot/gocover-cobertura < cover.out > coverage.cobertura.xml
 
       - name: Code Coverage Summary Report
